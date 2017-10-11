@@ -16,7 +16,6 @@ void main (void)
         /* Set port B pin 7 high to turn Arduino Mega yellow LED off */
         PORTB &= ~_BV(PORTB7);
         _delay_ms(BLINK_DELAY_MS);
-
         PORTB |= _BV(PORTB6);
         _delay_ms(BLINK_DELAY_MS);
         /* Set port B pin 7 high to turn Arduino Mega yellow LED off */
