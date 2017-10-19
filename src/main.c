@@ -19,13 +19,11 @@ void main (void)
         /*Breakpoint*/
         PORTA &= ~_BV(PORTA0);
         _delay_ms(BLINK_DELAY_MS1);
-
         PORTA |= _BV(PORTA2);
         _delay_ms(BLINK_DELAY_MS2);
         /*Breakpoint*/
         PORTA &= ~_BV(PORTA2);
         _delay_ms(BLINK_DELAY_MS2);
-
         PORTA |= _BV(PORTA4);
         _delay_ms(BLINK_DELAY_MS3);
         /*Breakpoint*/
