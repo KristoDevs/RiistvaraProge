@@ -4,8 +4,9 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include "uart.h"
+#include "../lib/hd44780_111/hd44780.h"
 
-#define BLINK_DELAY_MS 100
+#define BLINK_DELAY_MS 1000
 
 static inline void init_leds(void)
 {
@@ -51,36 +52,27 @@ static inline void blink_leds(void)
     }
 }
 
+static inline void local_lcd_test(void) {
+  uint8_t pos = LCD_COLS_MAX;
+  lcd_home();
+  do {
+    lcd_putc(0xFF);
+    _delay_ms(1000);
+  } while (pos--);
+}
+
 void main(void)
 {
-    DDRD |= _BV(DDD3);
-    init_leds();
-    init_errcon();
-    /* Test assert - REMOVE IN FUTURE LABS */
-    char *array;
-    uint32_t i = 1;
-    extern int __heap_start, *__brkval;
-    int v;
-    array = malloc( i * sizeof(char));
-    assert(array);
-    /* End test assert */
+  init_leds();
+  init_errcon();
+  lcd_init();
+  lcd_home();
+  lcd_puts("    Hire me");
+  lcd_goto(LCD_ROW_2_START);
+  lcd_puts("      pls");
+  local_lcd_test();
 
-    while (1) {
-        blink_leds();
-        PORTD |= _BV(PORTD3);
-        _delay_ms(BLINK_DELAY_MS);
-        /* Test assert - REMOVE IN FUTURE LABS */
-        /*
-         * Increase memory allocated for array by 100 chars
-         * until we have eaten it all and print space between stack and heap.
-         * That is how assert works in run-time.
-         */
-        array = realloc( array, (i++ * 100) * sizeof(char));
-        fprintf(stderr, "%d\n",
-                (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval));
-        assert(array);
-        /* End test assert */
-        PORTD &= ~_BV(PORTD3);
-        _delay_ms(BLINK_DELAY_MS);
-    }
+  while(1) {
+    blink_leds();
+  }
 }

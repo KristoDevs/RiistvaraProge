@@ -541,7 +541,7 @@ Display character
 Input:    character to be displayed
 Returns:  none
 *************************************************************************/
-void lcd_putc(char c)
+void lcd_putc(unsigned c)
 {
     lcd_write(c, 1);
 }
@@ -765,4 +765,3 @@ void lcd_clr(uint8_t pos, uint8_t len)
         lcd_putc(' ');
     }
 }
-
