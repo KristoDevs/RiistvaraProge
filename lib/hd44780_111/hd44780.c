@@ -541,7 +541,7 @@ Display character
 Input:    character to be displayed
 Returns:  none
 *************************************************************************/
-void lcd_putc(unsigned c)
+void lcd_putc(char c)
 {
     lcd_write(c, 1);
 }

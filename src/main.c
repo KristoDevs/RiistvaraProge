@@ -1,9 +1,10 @@
 #include <stdio.h>
-#define __ASSERT_USE_STDERR
-#include <assert.h>
 #include <avr/io.h>
 #include <util/delay.h>
+#include <string.h>
 #include "uart.h"
+#include "hmi_msg.h"
+#include "print_helper.h"
 #include "../lib/hd44780_111/hd44780.h"
 
 #define BLINK_DELAY_MS 1000
@@ -26,6 +27,12 @@ static inline void init_errcon(void)
             FW_VERSION, __DATE__, __TIME__);
     fprintf(stderr, "avr-libc version: %s avr-gcc version: %s\n",
             __AVR_LIBC_VERSION_STRING__, __VERSION__);
+}
+
+static inline void init_stdin(void)
+{
+  simple_uart0_init();
+  stdin = stdout = &simple_uart0_io;
 }
 
 static inline void blink_leds(void)
@@ -52,27 +59,36 @@ static inline void blink_leds(void)
     }
 }
 
-static inline void local_lcd_test(void) {
-  uint8_t pos = LCD_COLS_MAX;
+static inline void init_lcd(void)
+{
+  lcd_init();
   lcd_home();
-  do {
-    lcd_putc(0xFF);
-    _delay_ms(1000);
-  } while (pos--);
+  lcd_puts(myName);
 }
 
 void main(void)
 {
+  DDRD |= _BV(DDD3);
   init_leds();
   init_errcon();
-  lcd_init();
-  lcd_home();
-  lcd_puts("    Hire me");
-  lcd_goto(LCD_ROW_2_START);
-  lcd_puts("      pls");
-  local_lcd_test();
+  init_stdin();
+  fprintf(stdout, "%s\n", myName);
+  print_ascii_tbl(stdout);
+  unsigned char ascii[128] = {0};
+  for (unsigned char i = 0; i < sizeof(ascii); i++)
+  {
+    ascii[i] = i;
+  }
+
+  print_for_human(stdout, ascii, sizeof(ascii));
+  init_lcd();
 
   while(1) {
+    int number;
+    fprintf(stdout, "Enter number > " );
+    fscanf(stdin, "%d", &number);
+    fprintf(stdout, "%d\n", number);
+
     blink_leds();
   }
 }
