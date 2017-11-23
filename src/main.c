@@ -89,6 +89,12 @@ void main(void)
     fscanf(stdin, "%d", &number);
     fprintf(stdout, "%d\n", number);
 
+    if(number >= 0 && number <= 9) {
+      fprintf(stdout, "You entered number %s\n", theNumbers[number]);
+    } else {
+      fprintf(stdout, "%s\n", wrongNumber);
+    }
+
     blink_leds();
   }
 }
