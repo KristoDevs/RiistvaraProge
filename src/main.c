@@ -1,14 +1,30 @@
-#include <stdio.h>
-#include <avr/io.h>
 #include <util/delay.h>
-#include <string.h>
+#include <time.h>
 #include <avr/pgmspace.h>
-#include "uart.h"
+#include <avr/interrupt.h>
 #include "hmi_msg.h"
 #include "print_helper.h"
+#include "cli_microrl.h"
 #include "../lib/hd44780_111/hd44780.h"
+#include "../lib/andygock_avr-uart/uart.h"
+#include "../lib/helius_microrl/microrl.h"
 
 #define BLINK_DELAY_MS 1000
+
+#define UART_BAUD 9600
+#define UART_STATUS_MASK 0x00FF
+
+//  Create  microrl object  and pointer on  it
+static microrl_t    rl;
+static microrl_t    *prl    =   &rl;
+
+static inline void init_micro(void)
+{
+    //    Call    init    with    ptr to  microrl instance    and print   callback
+    microrl_init(prl, uart0_puts);
+    //    Set callback    for execute
+    microrl_set_execute_callback(prl, cli_execute);
+}
 
 static inline void init_leds(void)
 {
@@ -19,84 +35,70 @@ static inline void init_leds(void)
     PORTB &= ~_BV(PORTB7);
 }
 
-/* Init error console as stderr in UART1 and print user code info */
-static inline void init_errcon(void)
+static inline void init_sys_timer(void)
 {
-    simple_uart1_init();
-    stderr = &simple_uart1_out;
-    fprintf_P(stderr, PSTR(VER_FW),
-              PSTR(FW_VERSION), PSTR(__DATE__), PSTR(__TIME__));
-    fprintf_P(stderr, PSTR(VER_LIBC),
-              PSTR(__AVR_LIBC_VERSION_STRING__), PSTR(__VERSION__));
+    //    counter_1 = 0; // Set counter to random number 0x19D5F539 in HEX. Set it to 0 if you want
+    TCCR1A = 0;
+    TCCR1B = 0;
+    TCCR1B |= _BV(WGM12); // Turn on CTC (Clear Timer on Compare)
+    TCCR1B |= _BV(CS12); // fCPU/256
+    OCR1A = 62549; // Note that it is actually two registers OCR5AH and OCR5AL
+    TIMSK1 |= _BV(OCIE1A); // Output Compare A Match Interrupt Enable
 }
 
-static inline void init_stdin(void)
-{
-    simple_uart0_init();
-    stdin = stdout = &simple_uart0_io;
-}
-
-static inline void blink_leds(void)
-{
-    while (1) {
-        PORTA |= _BV(PORTA0);
-        _delay_ms(BLINK_DELAY_MS);
-        /*Breakpoint*/
-        PORTA &= ~_BV(PORTA0);
-        _delay_ms(BLINK_DELAY_MS);
-        /*Breakpoint*/
-        PORTA |= _BV(PORTA2);
-        _delay_ms(BLINK_DELAY_MS);
-        /*Breakpoint*/
-        PORTA &= ~_BV(PORTA2);
-        _delay_ms(BLINK_DELAY_MS);
-        /*Breakpoint*/
-        PORTA |= _BV(PORTA4);
-        _delay_ms(BLINK_DELAY_MS);
-        /*Breakpoint*/
-        PORTA &= ~_BV(PORTA4);
-        _delay_ms(BLINK_DELAY_MS);
-        break;
-    }
-}
 
 static inline void init_lcd(void)
 {
-    lcd_init();
-    lcd_home();
-    lcd_puts_P(PSTR(myName));
+    lcd_puts_P(PSTR(printName));
+}
+
+static inline void heartbeat(void)
+{
+    static time_t prev_time;
+    char ascii_buf[11] = {0x00};
+    time_t now = time(NULL);
+
+    if (prev_time != now) {
+        //Print uptime to uart1
+        ltoa(now, ascii_buf, 10);
+        uart1_puts_p(PSTR("Uptime: "));
+        uart1_puts(ascii_buf);
+        uart1_puts_p(PSTR(" s.\r\n"));
+        //Toggle LED
+        PORTA ^= _BV(PORTA2);
+        prev_time = now;
+    }
+}
+
+static inline void show_errcon(void)
+{
+    uart1_puts_p(PSTR(VER_FW));
+    uart1_puts_p(PSTR(VER_LIBC));
 }
 
 void main(void)
 {
-    DDRD |= _BV(DDD3);
     init_leds();
-    init_errcon();
-    init_stdin();
-    fprintf_P(stdout, PSTR(myName "\n"));
-    print_ascii_tbl(stdout);
-    unsigned char ascii[128] = {0};
-
-    for (unsigned char i = 0; i < sizeof(ascii); i++) {
-        ascii[i] = i;
-    }
-
-    print_for_human(stdout, ascii, sizeof(ascii));
+    DDRD |= _BV(DDD3);
+    uart0_init(UART_BAUD_SELECT(UART_BAUD, F_CPU));
+    uart1_init(UART_BAUD_SELECT(UART_BAUD, F_CPU));
+    init_sys_timer();
+    sei();
+    lcd_init();
+    lcd_clrscr();
+    init_micro();
+    show_errcon();
+    uart0_puts_p(PSTR(myName));
     init_lcd();
 
     while (1) {
-        int number;
-        fprintf_P(stdout, PSTR(ENTER_NUMBER));
-        fscanf(stdin, "%d", &number);
-        fprintf(stdout, "%d\n", number);
-
-        if (number >= 0 && number <= 9) {
-            fprintf_P(stdout, PSTR(INSERTED_NUMBER),
-                      (PGM_P)pgm_read_word(&(numbers_table[number])));
-        } else {
-            fprintf_P(stdout, PSTR(wrongNumber));
-        }
-
-        blink_leds();
+        heartbeat();
+        //  CLI commands    are handled in  cli_execute()
+        microrl_insert_char(prl,    (uart0_getc()   &   UART_STATUS_MASK));
     }
+}
+
+ISR(TIMER1_COMPA_vect)
+{
+    system_tick();
 }
